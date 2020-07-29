@@ -1,5 +1,7 @@
 use crate::errors::{AvroResult, Error};
 use num_bigint::BigInt;
+use serde::{Serialize, Serializer, ser::Error as SerdeError};
+use std::convert::TryFrom;
 
 #[derive(Debug, Clone)]
 pub struct Decimal {
@@ -56,3 +58,16 @@ impl From<Vec<u8>> for Decimal {
         }
     }
 }
+
+impl Serialize for Decimal {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match i64::try_from(&self.value) {
+            Ok(val) => serializer.serialize_i64(val),
+            Err(_) => Err(SerdeError::custom("to big int"))
+        }
+    }
+}
+

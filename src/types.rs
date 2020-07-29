@@ -5,6 +5,7 @@ use crate::{
     errors::{AvroResult, Error},
     schema::{Precision, RecordField, Scale, Schema, SchemaKind, UnionSchema},
 };
+use serde::{Serialize, Serializer, ser::SerializeMap};
 use serde_json::Value as JsonValue;
 use std::{collections::HashMap, convert::TryFrom, hash::BuildHasher, str::FromStr, u8};
 use uuid::Uuid;
@@ -20,7 +21,8 @@ fn max_prec_for_len(len: usize) -> Result<usize, std::num::TryFromIntError> {
 ///
 /// More information about Avro values can be found in the [Avro
 /// Specification](https://avro.apache.org/docs/current/spec.html#schemas)
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(untagged)]
 pub enum Value {
     /// A `null` Avro value.
     Null,
@@ -47,6 +49,7 @@ pub enum Value {
     /// of its corresponding schema.
     /// This allows schema-less encoding, as well as schema resolution while
     /// reading values.
+    #[serde(serialize_with = "serialize_enum")]
     Enum(i32, String),
     /// An `union` Avro value.
     Union(Box<Value>),
@@ -60,6 +63,7 @@ pub enum Value {
     /// This allows schema-less encoding.
     ///
     /// See [Record](types.Record) for a more user-friendly support.
+    #[serde(serialize_with = "serialize_record")]
     Record(Vec<(String, Value)>),
     /// A date value.
     ///
@@ -181,6 +185,38 @@ pub struct Record<'a> {
     pub fields: Vec<(String, Value)>,
     schema_lookup: &'a HashMap<String, usize>,
 }
+
+fn serialize_record<S>(
+    r: &Vec<(String, Value)>,
+    serializer: S
+) -> Result<S::Ok, S::Error> where S: Serializer {
+    let mut map = serializer.serialize_map(Some(r.len()))?;
+    for (k, v) in r {
+        map.serialize_entry(&k, &v)?;
+    };
+    map.end()
+}
+
+fn serialize_enum<S>(
+    _: &i32,
+    value: &str,
+    serializer: S
+) -> Result<S::Ok, S::Error> where S: Serializer {
+    serializer.serialize_str(value)
+}
+
+// impl Serialize for Record<'_> {
+//     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+//     where
+//         S: Serializer,
+//     {
+//         let mut map = serializer.serialize_map(Some(self.fields.len()))?;
+//         for (k, v) in &self.fields {
+//             map.serialize_entry(&k, &v)?;
+//         };
+//         map.end()
+//     }
+// }
 
 impl<'a> Record<'a> {
     /// Create a `Record` given a `Schema`.

@@ -1,5 +1,6 @@
 use byteorder::LittleEndian;
 use zerocopy::U32;
+use serde::{Serialize, Serializer, ser::SerializeMap};
 
 /// A struct representing duration that hides the details of endianness and conversion between
 /// platform-native u32 and byte arrays.
@@ -114,6 +115,19 @@ impl Duration {
     /// Return the number of milliseconds in this duration.
     pub fn millis(&self) -> Millis {
         self.millis
+    }
+}
+
+impl Serialize for Duration {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut map = serializer.serialize_map(Some(3))?;
+        map.serialize_entry("months", &u32::from(self.months))?;
+        map.serialize_entry("days", &u32::from(self.days))?;
+        map.serialize_entry("millis", &u32::from(self.millis))?;
+        map.end()
     }
 }
 
